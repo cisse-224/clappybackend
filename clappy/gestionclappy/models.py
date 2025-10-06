@@ -2,12 +2,35 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import AbstractUser
-
+from django.db.models import Sum
+from django.utils import timezone
 # --------- CustomUser ---------
 class CustomUser(AbstractUser):
     telephone = models.CharField(max_length=15, unique=True, null=True, blank=True)
     is_client = models.BooleanField(default=False)
     is_chauffeur = models.BooleanField(default=False)
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
+
+class LogoutRefreshView(APIView):
+    """
+    Blacklist the provided refresh token so it cannot be used again.
+    Accepts { "refresh": "<refresh_token>" } in POST body.
+    """
+    permission_classes = (AllowAny,)  # AllowAny is OK because we validate the token itself.
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            return Response({'detail': 'Refresh token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response({'detail': 'Refresh token blacklisted.'}, status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 # --------- Client ---------
 class Client(models.Model):
@@ -199,3 +222,35 @@ class Tarif(models.Model):
     
     def __str__(self):
         return f"Tarif {self.type_vehicule} - {self.prix_par_km} GNF/km"
+
+class RevenuMensuelView(APIView):
+    permission_classes = [IsAuthenticated]  # facultatif si tu veux protéger la route
+
+    def get(self, request):
+        # Obtenir la date actuelle
+        maintenant = timezone.now()
+        mois_courant = maintenant.month
+        annee_courante = maintenant.year
+
+        # Filtrer uniquement les courses terminées ce mois-ci
+        courses = Course.objects.filter(
+            statut='terminee',
+            date_fin__year=annee_courante,
+            date_fin__month=mois_courant
+        )
+
+        # Calcul du revenu total du mois
+        revenu_total = courses.aggregate(total=Sum('tarif_final'))['total'] or 0
+
+        # Calcul du nombre de courses terminées
+        nombre_courses = courses.count()
+
+        # Préparer les données de réponse
+        data = {
+            "annee": annee_courante,
+            "mois": maintenant.strftime("%B"),  # Nom du mois (ex: October)
+            "revenu_total": float(revenu_total),
+            "nombre_courses": nombre_courses
+        }
+
+        return Response(data)

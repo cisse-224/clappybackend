@@ -5,11 +5,17 @@ from django.db.models import Count, Avg, Sum
 from django.utils import timezone
 from datetime import timedelta
 from .models import Client, Chauffeur, Vehicule, Course, Paiement, Evaluation, HistoriquePosition, Tarif
-from .serializers import *
+from .serializers import (ClientSerializer, ChauffeurSerializer, ChauffeurCreateSerializer,
+                          VehiculeSerializer, CourseSerializer, PaiementSerializer,
+                          EvaluationSerializer, HistoriquePositionSerializer, TarifSerializer)
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.contrib.auth import authenticate
 from rest_framework import status
+from rest_framework.permissions import IsAdminUser, AllowAny
+from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.views import APIView
 
 @api_view(['POST'])
 def login_view(request):
@@ -20,7 +26,22 @@ def login_view(request):
         # Générer un token (SimpleJWT ou autre)
         return Response({'token': 'votre_token'})
     return Response({'detail': 'Identifiants invalides'}, status=status.HTTP_401_UNAUTHORIZED)
-
+class LogoutRefreshView(APIView):
+    """
+    Blacklist the provided refresh token so it cannot be used again.
+    Accepts { "refresh": "<refresh_token>" } in POST body.
+    """
+    permission_classes = (AllowAny,)  # AllowAny is OK because we validate the token itself.
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            return Response({'detail': 'Refresh token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response({'detail': 'Refresh token blacklisted.'}, status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.all().select_related('utilisateur')
     serializer_class = ClientSerializer
@@ -34,11 +55,30 @@ class ClientViewSet(viewsets.ModelViewSet):
         serializer = CourseSerializer(courses, many=True, context={'request': request})
         return Response(serializer.data)
 
+User = get_user_model()
+
 class ChauffeurViewSet(viewsets.ModelViewSet):
     queryset = Chauffeur.objects.all().select_related('utilisateur')
-    serializer_class = ChauffeurSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
+    permission_classes = [IsAdminUser]
+
+    def get_serializer_class(self):
+        # Lors de la création, on utilise un serializer spécial qui crée aussi l’utilisateur
+        if self.action == 'create':
+            return ChauffeurCreateSerializer
+        return ChauffeurSerializer
+
+    def create(self, request, *args, **kwargs):
+        """
+        Création d’un chauffeur + compte utilisateur lié
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        chauffeur = serializer.save()
+        return Response(
+            ChauffeurSerializer(chauffeur, context={'request': request}).data,
+            status=status.HTTP_201_CREATED
+        )
+
     @action(detail=True, methods=['get'])
     def courses(self, request, pk=None):
         """Liste toutes les courses d'un chauffeur"""
@@ -52,14 +92,13 @@ class ChauffeurViewSet(viewsets.ModelViewSet):
         """Statistiques détaillées d'un chauffeur"""
         chauffeur = self.get_object()
         
-        # Calcul des statistiques
         courses_total = Course.objects.filter(chauffeur=chauffeur).count()
         courses_mois = Course.objects.filter(
-            chauffeur=chauffeur, 
+            chauffeur=chauffeur,
             date_demande__month=timezone.now().month
         ).count()
         revenu_total = Paiement.objects.filter(
-            course__chauffeur=chauffeur, 
+            course__chauffeur=chauffeur,
             statut_paiement='paye'
         ).aggregate(total=Sum('montant'))['total'] or 0
         note_moyenne = Evaluation.objects.filter(
@@ -83,11 +122,7 @@ class ChauffeurViewSet(viewsets.ModelViewSet):
             chauffeur.statut = nouveau_statut
             chauffeur.save()
             return Response({'statut': 'Statut mis à jour'})
-        return Response(
-            {'erreur': 'Statut invalide'}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
+        return Response({'erreur': 'Statut invalide'}, status=status.HTTP_400_BAD_REQUEST)
 class VehiculeViewSet(viewsets.ModelViewSet):
     queryset = Vehicule.objects.all().select_related('chauffeur__utilisateur')
     serializer_class = VehiculeSerializer
@@ -260,3 +295,103 @@ class TarifViewSet(viewsets.ModelViewSet):
     queryset = Tarif.objects.filter(est_actif=True)
     serializer_class = TarifSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+class RevenuMensuelView(APIView):
+    permission_classes = [permissions.AllowAny]  # facultatif si tu veux protéger la route
+
+    def get(self, request):
+        # Obtenir la date actuelle
+        maintenant = timezone.now()
+        mois_courant = maintenant.month
+        annee_courante = maintenant.year
+
+        # Filtrer uniquement les courses terminées ce mois-ci
+        courses = Course.objects.filter(
+            statut='terminee',
+            date_fin__year=annee_courante,
+            date_fin__month=mois_courant
+        )
+
+        # Calcul du revenu total du mois
+        revenu_total = courses.aggregate(total=Sum('tarif_final'))['total'] or 0
+
+        # Calcul du nombre de courses terminées
+        nombre_courses = courses.count()
+
+        # Préparer les données de réponse
+        data = {
+            "annee": annee_courante,
+            "mois": maintenant.strftime("%B"),  # Nom du mois (ex: October)
+            "revenu_total": float(revenu_total),
+            "nombre_courses": nombre_courses
+        }
+
+        return Response(data)
+    
+class RevenuJournalierView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        maintenant = timezone.now()
+        jour_courant = maintenant.day
+        mois_courant = maintenant.month
+        annee_courante = maintenant.year
+
+        # Courses terminées aujourd’hui
+        courses = Course.objects.filter(
+            statut='terminee',
+            date_fin__year=annee_courante,
+            date_fin__month=mois_courant,
+            date_fin__day=jour_courant
+        )
+
+        revenu_total = courses.aggregate(total=Sum('tarif_final'))['total'] or 0
+        nombre_courses = courses.count()
+
+        data = {
+            "annee": annee_courante,
+            "mois": maintenant.strftime("%B"),
+            "jour": jour_courant,
+            "revenu_total": float(revenu_total),
+            "nombre_courses": nombre_courses
+        }
+
+        return Response(data)
+class MeilleurChauffeurDuMoisView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        maintenant = timezone.now()
+        mois_courant = maintenant.month
+        annee_courante = maintenant.year
+
+        # On filtre les courses terminées ce mois
+        courses = Course.objects.filter(
+            statut='terminee',
+            date_fin__year=annee_courante,
+            date_fin__month=mois_courant,
+            chauffeur__isnull=False
+        )
+
+        # On groupe par chauffeur et on calcule le revenu total
+        chauffeurs_revenus = (
+            courses.values('chauffeur__id', 'chauffeur__utilisateur__username')
+            .annotate(revenu_total=Sum('tarif_final'))
+            .order_by('-revenu_total')
+        )
+
+        if chauffeurs_revenus.exists():
+            meilleur = chauffeurs_revenus.first()
+            data = {
+                "annee": annee_courante,
+                "mois": maintenant.strftime("%B"),
+                "chauffeur_id": meilleur['chauffeur__id'],
+                "chauffeur_nom": meilleur['chauffeur__utilisateur__username'],
+                "revenu_total": float(meilleur['revenu_total']),
+            }
+        else:
+            data = {
+                "message": "Aucun chauffeur trouvé pour ce mois."
+            }
+
+        return Response(data)

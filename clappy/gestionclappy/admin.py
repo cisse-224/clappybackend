@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import *
 
+
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
     list_display = ['utilisateur', 'telephone', 'date_creation']
@@ -46,3 +47,4 @@ class EvaluationAdmin(admin.ModelAdmin):
 class TarifAdmin(admin.ModelAdmin):
     list_display = ['type_vehicule', 'prix_base', 'prix_par_km', 'est_actif']
     list_filter = ['type_vehicule', 'est_actif']
+
