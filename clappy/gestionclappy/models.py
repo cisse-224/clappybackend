@@ -46,7 +46,47 @@ class Client(models.Model):
     
     def __str__(self):
         return f"{self.utilisateur.get_full_name() or self.utilisateur.username}"
+class ChangePasswordView(APIView):
+    """
+    Permet à un utilisateur connecté de changer son mot de passe
+    """
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        ancien_mot_de_passe = request.data.get("ancien_mot_de_passe")
+        nouveau_mot_de_passe = request.data.get("nouveau_mot_de_passe")
+        confirmation = request.data.get("confirmation")
+
+        # Vérifier que tous les champs sont présents
+        if not ancien_mot_de_passe or not nouveau_mot_de_passe or not confirmation:
+            return Response(
+                {"detail": "Tous les champs sont requis."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Vérifier que l'ancien mot de passe est correct
+        if not user.check_password(ancien_mot_de_passe):
+            return Response(
+                {"detail": "Ancien mot de passe incorrect."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Vérifier la confirmation
+        if nouveau_mot_de_passe != confirmation:
+            return Response(
+                {"detail": "Les mots de passe ne correspondent pas."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Changer le mot de passe
+        user.set_password(nouveau_mot_de_passe)
+        user.save()
+
+        return Response(
+            {"detail": "Mot de passe modifié avec succès."},
+            status=status.HTTP_200_OK
+        )
 # --------- Chauffeur ---------
 class Chauffeur(models.Model):
     """Modèle pour les chauffeurs de taxi"""
@@ -66,8 +106,9 @@ class Chauffeur(models.Model):
     note_moyenne = models.DecimalField(max_digits=3, decimal_places=2, default=5.0, verbose_name="Note moyenne")
     date_creation = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
     date_modification = models.DateTimeField(auto_now=True, verbose_name="Date de modification")
-    
+
     class Meta:
+        ordering = ['id']
         verbose_name = "Chauffeur"
         verbose_name_plural = "Chauffeurs"
     
@@ -120,7 +161,11 @@ class Course(models.Model):
         ('immediate', 'Course immédiate'),
         ('reservation', 'Réservation'),
     ]
-    
+    type_vehicule_demande = models.CharField(
+        max_length=15, 
+        choices=Vehicule.TYPE_VEHICULE_CHOIX, 
+        verbose_name="Type de véhicule demandé"
+    )
     client = models.ForeignKey(Client, on_delete=models.CASCADE, verbose_name="Client")
     chauffeur = models.ForeignKey(Chauffeur, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Chauffeur")
     adresse_depart = models.TextField(verbose_name="Adresse de départ")

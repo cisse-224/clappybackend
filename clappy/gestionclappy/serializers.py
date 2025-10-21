@@ -51,6 +51,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name']
 
 # ================= CLIENT =================
 class ClientSerializer(serializers.ModelSerializer):
@@ -63,12 +67,12 @@ class ClientSerializer(serializers.ModelSerializer):
 
 # ================= CHAUFFEUR =================
 class ChauffeurSerializer(serializers.ModelSerializer):
-    owner_email = serializers.CharField(source='owner.email', read_only=True)
+    utilisateur = UserSerializer(read_only=True)
 
     class Meta:
         model = Chauffeur
-        fields = ['url', 'id', 'utilisateur', 'telephone', 'numero_permis', 'statut',
-                  'est_approuve', 'note_moyenne', 'owner_email']
+        fields = ['url', 'id', 'utilisateur', 'telephone', 'numero_permis', 
+                  'statut', 'est_approuve', 'note_moyenne']
         read_only_fields = ['id', 'note_moyenne']
 
 
@@ -161,3 +165,22 @@ class TarifSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tarif
         fields = '__all__'
+
+# ================= CHANGEMENT DE MOT DE PASSE =================
+from django.contrib.auth.password_validation import validate_password
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, validators=[validate_password])
+
+    def validate_old_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("L'ancien mot de passe est incorrect.")
+        return value
+
+    def validate(self, data):
+        if data['old_password'] == data['new_password']:
+            raise serializers.ValidationError("Le nouveau mot de passe doit être différent de l'ancien.")
+        return data
+

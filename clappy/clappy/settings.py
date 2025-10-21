@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     'gestionclappy',
     'rest_framework',
     'corsheaders',
-    'rest_framework_simplejwt',  # ✅ Ajouter ceci
+    'rest_framework_simplejwt',
+    'channels',  # ✅ Ajouter ceci
 ]
 
 MIDDLEWARE = [
