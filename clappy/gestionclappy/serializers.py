@@ -123,7 +123,7 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = [
-            'url', 'id', 'client', 'client_nom', 'chauffeur', 'chauffeur_nom',
+            'url', 'id', 'client', 'client_nom','type_vehicule_demande',  'chauffeur', 'chauffeur_nom',
             'adresse_depart', 'adresse_destination', 'latitude_depart', 'longitude_depart',
             'latitude_destination', 'longitude_destination', 'type_course', 'date_demande',
             'date_acceptation', 'date_debut', 'date_fin', 'date_reservation', 'tarif_estime',

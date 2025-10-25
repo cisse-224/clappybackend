@@ -30,24 +30,38 @@ class NotificationService:
             course = Course.objects.get(id=course_id)
             type_vehicule_demande = course.type_vehicule_demande
             
-            channel_layer = get_channel_layer()
-            
-            # Envoyer la notification à tous les chauffeurs du type de véhicule demandé
-            async_to_sync(channel_layer.group_send)(
-                f"chauffeurs_{type_vehicule_demande}",
-                {
-                    "type": "send_course_alert",
-                    "message": "Nouvelle course disponible!",
-                    "course_id": course.id,
-                    "depart": course.adresse_depart,
-                    "destination": course.adresse_destination,
-                    "tarif_estime": str(course.tarif_estime),
-                    "type_vehicule": type_vehicule_demande
-                }
-            )
-            
-            return True
+            # ✅ Vérifier que channel_layer est disponible
+            try:
+                channel_layer = get_channel_layer()
+                if channel_layer is None:
+                    print(" Channel layer non disponible - notification ignorée")
+                    return False
+                
+                # Envoyer la notification à tous les chauffeurs du type de véhicule demandé
+                async_to_sync(channel_layer.group_send)(
+                    f"chauffeurs_{type_vehicule_demande}",
+                    {
+                        "type": "send_course_alert",
+                        "message": "Nouvelle course disponible!",
+                        "course_id": course.id,
+                        "depart": course.adresse_depart,
+                        "destination": course.adresse_destination,
+                        "tarif_estime": str(course.tarif_estime),
+                        "type_vehicule": type_vehicule_demande
+                    }
+                )
+                print(f"✅ Notification envoyée pour course {course_id}")
+                return True
+                
+            except Exception as e:
+                print(f"⚠️ Erreur channel layer: {e} - notification ignorée")
+                return False
+                
         except Course.DoesNotExist:
+            print(f"❌ Course {course_id} non trouvée")
+            return False
+        except Exception as e:
+            print(f"❌ Erreur notification: {e}")
             return False
 
     @staticmethod
@@ -58,21 +72,32 @@ class NotificationService:
             chauffeur = Chauffeur.objects.get(id=chauffeur_id)
             type_vehicule_demande = course.type_vehicule_demande
             
-            channel_layer = get_channel_layer()
-            
-            # Notifier tous les chauffeurs que la course a été prise
-            async_to_sync(channel_layer.group_send)(
-                f"chauffeurs_{type_vehicule_demande}",
-                {
-                    "type": "course_confirmed",
-                    "message": "Cette course a été confirmée par un autre chauffeur",
-                    "course_id": course.id,
-                    "chauffeur_name": str(chauffeur)
-                }
-            )
-            
-            return True
-        except (Course.DoesNotExist, Chauffeur.DoesNotExist):
+            # ✅ Vérifier que channel_layer est disponible
+            try:
+                channel_layer = get_channel_layer()
+                if channel_layer is None:
+                    print("⚠️ Channel layer non disponible - confirmation ignorée")
+                    return False
+                
+                # Notifier tous les chauffeurs que la course a été prise
+                async_to_sync(channel_layer.group_send)(
+                    f"chauffeurs_{type_vehicule_demande}",
+                    {
+                        "type": "course_confirmed",
+                        "message": "Cette course a été confirmée par un autre chauffeur",
+                        "course_id": course.id,
+                        "chauffeur_name": str(chauffeur)
+                    }
+                )
+                print(f"✅ Confirmation notifiée pour course {course_id}")
+                return True
+                
+            except Exception as e:
+                print(f"⚠️ Erreur channel layer confirmation: {e}")
+                return False
+                
+        except (Course.DoesNotExist, Chauffeur.DoesNotExist) as e:
+            print(f"❌ Erreur confirmation: {e}")
             return False
 
 @api_view(['POST'])
@@ -91,6 +116,7 @@ class LogoutRefreshView(APIView):
     Accepts { "refresh": "<refresh_token>" } in POST body.
     """
     permission_classes = (AllowAny,)  # AllowAny is OK because we validate the token itself.
+    
     def post(self, request, *args, **kwargs):
         refresh_token = request.data.get('refresh')
         if not refresh_token:
@@ -287,10 +313,21 @@ class CourseViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def perform_create(self, serializer):
-        course = serializer.save(statut='demandee', date_demande=timezone.now())
-        
-        # Envoyer la notification à tous les chauffeurs du type de véhicule demandé
-        NotificationService.envoyer_notification_course(course.id)
+        try:
+            # Sauvegarder la course d'abord
+            course = serializer.save(statut='demandee', date_demande=timezone.now())
+            print(f"✅ Course {course.id} créée avec succès")
+            
+            # ✅ Envoyer la notification (mais ne pas bloquer en cas d'erreur)
+            try:
+                NotificationService.envoyer_notification_course(course.id)
+            except Exception as e:
+                print(f"⚠️ Notification échouée mais course créée: {e}")
+                # Ne pas lever l'exception pour ne pas bloquer la création
+                
+        except Exception as e:
+            print(f"❌ Erreur création course: {e}")
+            raise  # Relancer l'exception pour que l'API retourne une erreur
 
     def get_queryset(self):
         """Filtrage personnalisé des courses"""
