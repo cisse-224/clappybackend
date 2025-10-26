@@ -100,15 +100,50 @@ class NotificationService:
             print(f"❌ Erreur confirmation: {e}")
             return False
 
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.models import User
+from .serializers import UserSerializer  # Si vous avez un serializer
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+
 @api_view(['POST'])
+@permission_classes([AllowAny])  # ✅ IMPORTANT: Permettre l'accès sans authentification
 def login_view(request):
     username = request.data.get('username')
     password = request.data.get('password')
+    
+    print(f"🔐 Tentative de connexion: {username}")
+    
     user = authenticate(username=username, password=password)
+    
     if user:
-        # Générer un token (SimpleJWT ou autre)
-        return Response({'token': 'votre_token'})
-    return Response({'detail': 'Identifiants invalides'}, status=status.HTTP_401_UNAUTHORIZED)
+        # Générer les tokens JWT
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'status': 'success',
+            'message': 'Connexion réussie',
+            'token': str(refresh.access_token),
+            'refresh_token': str(refresh),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+            }
+        }, status=status.HTTP_200_OK)
+    else:
+        return Response({
+            'status': 'error',
+            'message': 'Identifiants invalides',
+            'token': None,
+            'user': None
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
 
 class LogoutRefreshView(APIView):
     """
