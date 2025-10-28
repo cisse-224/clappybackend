@@ -115,20 +115,24 @@ class VehiculeSerializer(serializers.ModelSerializer):
 
 # ================= COURSE =================
 class CourseSerializer(serializers.ModelSerializer):
-    url = serializers.HyperlinkedIdentityField(view_name='course-detail')
-    client_nom = serializers.CharField(source='client.utilisateur.get_full_name', read_only=True)
-    chauffeur_nom = serializers.CharField(source='chauffeur.utilisateur.get_full_name', read_only=True)
+    client_nom_complet = serializers.CharField(source='client.utilisateur.get_full_name', read_only=True)
+    chauffeur_nom_complet = serializers.CharField(source='chauffeur.utilisateur.get_full_name', read_only=True)
     duree_totale = serializers.SerializerMethodField()
 
     class Meta:
         model = Course
         fields = [
-            'url', 'id', 'client', 'client_nom','type_vehicule_demande',  'chauffeur', 'chauffeur_nom',
-            'adresse_depart', 'adresse_destination', 'latitude_depart', 'longitude_depart',
-            'latitude_destination', 'longitude_destination', 'type_course', 'date_demande',
-            'date_acceptation', 'date_debut', 'date_fin', 'date_reservation', 'tarif_estime',
-            'tarif_final', 'distance_estimee', 'duree_estimee', 'statut', 'methode_paiement',
-            'notes_client', 'duree_totale'
+            'id',
+            'client_nom_complet',
+            'chauffeur_nom_complet',
+            'adresse_depart',
+            'adresse_destination',
+            'type_course',
+            'statut',
+            'methode_paiement',
+            'tarif_estime',
+            'tarif_final',
+            'duree_totale',
         ]
         read_only_fields = ['date_demande']
 

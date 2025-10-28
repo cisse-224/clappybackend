@@ -20,7 +20,7 @@ class LogoutRefreshView(APIView):
     Blacklist the provided refresh token so it cannot be used again.
     Accepts { "refresh": "<refresh_token>" } in POST body.
     """
-    permission_classes = (AllowAny,)  # AllowAny is OK because we validate the token itself.
+    permission_classes = (AllowAny,)  # AllowAny
     def post(self, request, *args, **kwargs):
         refresh_token = request.data.get('refresh')
         if not refresh_token:

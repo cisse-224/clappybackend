@@ -111,39 +111,61 @@ from .serializers import UserSerializer  # Si vous avez un serializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 
+
 @api_view(['POST'])
-@permission_classes([AllowAny])  # ✅ IMPORTANT: Permettre l'accès sans authentification
+@permission_classes([AllowAny])
 def login_view(request):
     username = request.data.get('username')
     password = request.data.get('password')
-    
+
     print(f"🔐 Tentative de connexion: {username}")
-    
+
     user = authenticate(username=username, password=password)
-    
-    if user:
-        # Générer les tokens JWT
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            'status': 'success',
-            'message': 'Connexion réussie',
-            'token': str(refresh.access_token),
-            'refresh_token': str(refresh),
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-            }
-        }, status=status.HTTP_200_OK)
-    else:
+
+    if not user:
         return Response({
             'status': 'error',
             'message': 'Identifiants invalides',
             'token': None,
             'user': None
         }, status=status.HTTP_401_UNAUTHORIZED)
-    
+
+    refresh = RefreshToken.for_user(user)
+
+    # Déterminer le rôle et l'ID lié
+    role = 'inconnu'
+    chauffeur_id = None
+    client_id = None
+
+    try:
+        chauffeur = Chauffeur.objects.get(utilisateur=user)
+        role = 'chauffeur'
+        chauffeur_id = chauffeur.id
+    except Chauffeur.DoesNotExist:
+        try:
+            client = Client.objects.get(utilisateur=user)
+            role = 'client'
+            client_id = client.id
+        except Client.DoesNotExist:
+            role = 'inconnu'
+
+    # Construire la réponse
+    user_data = {
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'role': role,
+        'chauffeur_id': chauffeur_id,
+        'client_id': client_id,
+    }
+
+    return Response({
+        'status': 'success',
+        'message': 'Connexion réussie',
+        'token': str(refresh.access_token),
+        'refresh_token': str(refresh),
+        'user': user_data
+    }, status=status.HTTP_200_OK)
 
 class LogoutRefreshView(APIView):
     """
