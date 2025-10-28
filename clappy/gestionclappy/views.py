@@ -30,7 +30,7 @@ class NotificationService:
             course = Course.objects.get(id=course_id)
             type_vehicule_demande = course.type_vehicule_demande
             
-            # ✅ Vérifier que channel_layer est disponible
+            #  Vérifier que channel_layer est disponible
             try:
                 channel_layer = get_channel_layer()
                 if channel_layer is None:
@@ -50,18 +50,18 @@ class NotificationService:
                         "type_vehicule": type_vehicule_demande
                     }
                 )
-                print(f"✅ Notification envoyée pour course {course_id}")
+                print(f" Notification envoyée pour course {course_id}")
                 return True
                 
             except Exception as e:
-                print(f"⚠️ Erreur channel layer: {e} - notification ignorée")
+                print(f" Erreur channel layer: {e} - notification ignorée")
                 return False
                 
         except Course.DoesNotExist:
-            print(f"❌ Course {course_id} non trouvée")
+            print(f" Course {course_id} non trouvée")
             return False
         except Exception as e:
-            print(f"❌ Erreur notification: {e}")
+            print(f" Erreur notification: {e}")
             return False
 
     @staticmethod
@@ -72,11 +72,11 @@ class NotificationService:
             chauffeur = Chauffeur.objects.get(id=chauffeur_id)
             type_vehicule_demande = course.type_vehicule_demande
             
-            # ✅ Vérifier que channel_layer est disponible
+            #  Vérifier que channel_layer est disponible
             try:
                 channel_layer = get_channel_layer()
                 if channel_layer is None:
-                    print("⚠️ Channel layer non disponible - confirmation ignorée")
+                    print(" Channel layer non disponible - confirmation ignorée")
                     return False
                 
                 # Notifier tous les chauffeurs que la course a été prise
@@ -89,15 +89,15 @@ class NotificationService:
                         "chauffeur_name": str(chauffeur)
                     }
                 )
-                print(f"✅ Confirmation notifiée pour course {course_id}")
+                print(f" Confirmation notifiée pour course {course_id}")
                 return True
                 
             except Exception as e:
-                print(f"⚠️ Erreur channel layer confirmation: {e}")
+                print(f" Erreur channel layer confirmation: {e}")
                 return False
                 
         except (Course.DoesNotExist, Chauffeur.DoesNotExist) as e:
-            print(f"❌ Erreur confirmation: {e}")
+            print(f" Erreur confirmation: {e}")
             return False
 
 from rest_framework.decorators import api_view
@@ -112,12 +112,12 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 
 @api_view(['POST'])
-@permission_classes([AllowAny])  # ✅ IMPORTANT: Permettre l'accès sans authentification
+@permission_classes([AllowAny])  #  IMPORTANT: Permettre l'accès sans authentification
 def login_view(request):
     username = request.data.get('username')
     password = request.data.get('password')
     
-    print(f"🔐 Tentative de connexion: {username}")
+    print(f" Tentative de connexion: {username}")
     
     user = authenticate(username=username, password=password)
     
