@@ -59,10 +59,12 @@ class UserSerializer(serializers.ModelSerializer):
 # ================= CLIENT =================
 class ClientSerializer(serializers.ModelSerializer):
     url = serializers.HyperlinkedIdentityField(view_name='client-detail')
+
     class Meta:
         model = Client
         fields = ['url', 'id', 'utilisateur', 'telephone', 'date_creation', 'date_modification']
         read_only_fields = ['date_creation', 'date_modification']
+
 
 
 # ================= CHAUFFEUR =================
