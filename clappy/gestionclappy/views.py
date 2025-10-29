@@ -21,6 +21,12 @@ from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
 
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from rest_framework.views import APIView
+from .models import Client, Chauffeur  # Adaptez selon vos modèles
+
 # Service de notification pour les courses
 class NotificationService:
     @staticmethod
@@ -164,9 +170,10 @@ class LogoutRefreshView(APIView):
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class ClientViewSet(viewsets.ModelViewSet):
+    permission_classes = [AllowAny]  # Rendre l'endpoint public
     queryset = Client.objects.all().select_related('utilisateur')
     serializer_class = ClientSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
     
     @action(detail=True, methods=['get'])
     def courses(self, request, pk=None):
@@ -783,6 +790,34 @@ class ChauffeursDisponiblesView(APIView):
 
         return Response(data)
 
+
+#Verifier si le numero que le client a entrer pour la creation de son compte existe deja dans la base
+@method_decorator(csrf_exempt, name='dispatch')
+class CheckPhoneView(APIView):
+    permission_classes = [AllowAny]  # Rendre l'endpoint public
+    
+    def post(self, request):
+        telephone = request.data.get('telephone', '').strip()
+        
+        if not telephone:
+            return JsonResponse({
+                'error': 'Le numéro de téléphone est requis'
+            }, status=400)
+        
+        # Vérifier si le téléphone existe dans Client
+        client_exists = Client.objects.filter(telephone=telephone).exists()
+        
+        # Vérifier si le téléphone existe dans Chauffeur (si applicable)
+        chauffeur_exists = Chauffeur.objects.filter(telephone=telephone).exists()
+        
+        exists = client_exists or chauffeur_exists
+        
+        return JsonResponse({
+            'exists': exists,
+            'telephone': telephone,
+            'message': 'Numéro déjà utilisé' if exists else 'Numéro disponible'
+        })
+    
 # Vue pour tester les notifications
 class TestNotificationView(APIView):
     permission_classes = [permissions.AllowAny]
