@@ -1,4 +1,6 @@
 from django.contrib import admin
+
+
 from .models import *
 
 
@@ -48,3 +50,8 @@ class TarifAdmin(admin.ModelAdmin):
     list_display = ['type_vehicule', 'prix_base', 'prix_par_km', 'est_actif']
     list_filter = ['type_vehicule', 'est_actif']
 
+@admin.register(CustomUser)
+class CustomUserAdmin(admin.ModelAdmin):
+    list_display = ['username', 'email', 'first_name', 'last_name', 'telephone', 'is_staff', 'is_active']
+    search_fields = ['username', 'email', 'first_name', 'last_name', 'telephone']
+    list_filter = ['is_staff', 'is_active', 'is_client', 'is_chauffeur']

@@ -9,7 +9,7 @@ import json
 from asgiref.sync import async_to_sync, sync_to_async
 from channels.layers import get_channel_layer
 from .models import Client, Chauffeur, Vehicule, Course, Paiement, Evaluation, HistoriquePosition, Tarif
-from .serializers import (ClientSerializer, ChauffeurSerializer, ChauffeurCreateSerializer,
+from .serializers import (ClientSerializer, ChauffeurSerializer, ChauffeurCreateSerializer, ClientCreateSerializer,
                           VehiculeSerializer, CourseSerializer, PaiementSerializer,
                           EvaluationSerializer, HistoriquePositionSerializer, TarifSerializer, UserSerializer)
 from rest_framework.decorators import api_view
@@ -117,39 +117,61 @@ from .serializers import UserSerializer  # Si vous avez un serializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 
+
 @api_view(['POST'])
-@permission_classes([AllowAny])  #  IMPORTANT: Permettre l'accès sans authentification
+@permission_classes([AllowAny])
 def login_view(request):
     username = request.data.get('username')
     password = request.data.get('password')
-    
-    print(f" Tentative de connexion: {username}")
-    
+
+    print(f"🔐 Tentative de connexion: {username}")
+
     user = authenticate(username=username, password=password)
-    
-    if user:
-        # Générer les tokens JWT
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            'status': 'success',
-            'message': 'Connexion réussie',
-            'token': str(refresh.access_token),
-            'refresh_token': str(refresh),
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-            }
-        }, status=status.HTTP_200_OK)
-    else:
+
+    if not user:
         return Response({
             'status': 'error',
             'message': 'Identifiants invalides',
             'token': None,
             'user': None
         }, status=status.HTTP_401_UNAUTHORIZED)
-    
+
+    refresh = RefreshToken.for_user(user)
+
+    # Déterminer le rôle et l'ID lié
+    role = 'inconnu'
+    chauffeur_id = None
+    client_id = None
+
+    try:
+        chauffeur = Chauffeur.objects.get(utilisateur=user)
+        role = 'chauffeur'
+        chauffeur_id = chauffeur.id
+    except Chauffeur.DoesNotExist:
+        try:
+            client = Client.objects.get(utilisateur=user)
+            role = 'client'
+            client_id = client.id
+        except Client.DoesNotExist:
+            role = 'inconnu'
+
+    # Construire la réponse
+    user_data = {
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'role': role,
+        'chauffeur_id': chauffeur_id,
+        'client_id': client_id,
+    }
+
+    return Response({
+        'status': 'success',
+        'message': 'Connexion réussie',
+        'token': str(refresh.access_token),
+        'refresh_token': str(refresh),
+        'user': user_data
+    }, status=status.HTTP_200_OK)
 
 class LogoutRefreshView(APIView):
     """
@@ -172,8 +194,40 @@ class LogoutRefreshView(APIView):
 class ClientViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]  # Rendre l'endpoint public
     queryset = Client.objects.all().select_related('utilisateur')
-    serializer_class = ClientSerializer
-    # permission_classes = [permissions.IsAuthenticated]
+    
+    # ⬅️ CORRECTION: Ajouter cette méthode pour utiliser le bon serializer
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ClientCreateSerializer  # Utiliser le serializer de création
+        return ClientSerializer  # Utiliser le serializer normal pour les autres actions
+
+    def create(self, request, *args, **kwargs):
+        """
+        Création d'un client avec gestion d'erreur améliorée
+        """
+        print("🎯 Données reçues pour création client:", request.data)
+        
+        serializer = self.get_serializer(data=request.data)
+        
+        if serializer.is_valid():
+            print("✅ Données valides")
+            try:
+                client = serializer.save()
+                print(f"✅ Client créé: {client.id}, Utilisateur: {client.utilisateur.id}")
+                
+                # Retourner les données avec le serializer de lecture
+                read_serializer = ClientSerializer(client, context={'request': request})
+                return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+                
+            except Exception as e:
+                print(f"❌ Erreur lors de la création: {e}")
+                return Response(
+                    {"detail": f"Erreur lors de la création: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            print("❌ Erreurs de validation:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['get'])
     def courses(self, request, pk=None):
