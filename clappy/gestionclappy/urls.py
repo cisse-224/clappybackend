@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 
-from .views import LogoutRefreshView,UserProfileView, MeilleurChauffeurDuMoisView, RevenuJournalierView,RevenuMensuelView,ChangePasswordView, CheckPhoneView
+from .views import LogoutRefreshView,UserProfileView, MeilleurChauffeurDuMoisView, RevenuJournalierView,RevenuMensuelView,ChangePasswordView, CheckPhoneView,NombreClientsTotalView
 
 from . import views
 
@@ -12,6 +12,7 @@ router.register(r'clients', views.ClientViewSet)
 router.register(r'chauffeurs', views.ChauffeurViewSet)
 router.register(r'vehicules', views.VehiculeViewSet)
 router.register(r'courses', views.CourseViewSet)
+
 router.register(r'paiements', views.PaiementViewSet)
 router.register(r'evaluations', views.EvaluationViewSet)
 router.register(r'historique_positions', views.HistoriquePositionViewSet)
@@ -31,5 +32,6 @@ urlpatterns = [
     path('revenu-mensuel/', RevenuMensuelView.as_view(), name='revenu-mensuel'),
     path('revenu-journalier/', RevenuJournalierView.as_view(), name='revenu-journalier'),
     path('meilleur-chauffeur/', MeilleurChauffeurDuMoisView.as_view(), name='meilleur-chauffeur'),
+    path('nombre-clients-total/', NombreClientsTotalView.as_view(), name='nombre-clients-total'),
 ]
   

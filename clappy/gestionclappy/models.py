@@ -23,7 +23,7 @@ class Client(models.Model):
         verbose_name = "Client"
         verbose_name_plural = "Clients"
     
-    def __str__(self):
+    def _str_(self):
         return f"{self.utilisateur.get_full_name() or self.utilisateur.username}"
 
 # --------- Chauffeur ---------
@@ -51,7 +51,7 @@ class Chauffeur(models.Model):
         verbose_name = "Chauffeur"
         verbose_name_plural = "Chauffeurs"
     
-    def __str__(self):
+    def _str_(self):
         return f"{self.utilisateur.get_full_name() or self.utilisateur.username} - {self.numero_permis}"
 
 # --------- Vehicule ---------
@@ -77,7 +77,7 @@ class Vehicule(models.Model):
         verbose_name = "Véhicule"
         verbose_name_plural = "Véhicules"
     
-    def __str__(self):
+    def _str_(self):
         return f"{self.marque} {self.modele} - {self.immatriculation}"
 
 # --------- Course ---------
@@ -119,7 +119,7 @@ class Course(models.Model):
     date_acceptation = models.DateTimeField(null=True, blank=True, verbose_name="Date d'acceptation")
     date_debut = models.DateTimeField(null=True, blank=True, verbose_name="Date de début")
     date_fin = models.DateTimeField(null=True, blank=True, verbose_name="Date de fin")
-    date_reservation = models.DateTimeField(null=True, blank=True, verbose_name="Date de réservation")
+    date_reservation = models.DateTimeField(default=timezone.now)
     tarif_estime = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Tarif estimé (GNF)")
     tarif_final = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Tarif final (GNF)")
     distance_estimee = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True, verbose_name="Distance estimée (km)")
@@ -133,7 +133,7 @@ class Course(models.Model):
         verbose_name_plural = "Courses"
         ordering = ['-date_demande']
     
-    def __str__(self):
+    def _str_(self):
         return f"Course #{self.id} - {self.client}"
 
 # --------- Paiement ---------
@@ -158,7 +158,7 @@ class Paiement(models.Model):
         verbose_name = "Paiement"
         verbose_name_plural = "Paiements"
     
-    def __str__(self):
+    def _str_(self):
         return f"Paiement #{self.id} - {self.montant} GNF - {self.course}"
 
 # --------- Evaluation ---------
@@ -175,7 +175,7 @@ class Evaluation(models.Model):
         verbose_name = "Évaluation"
         verbose_name_plural = "Évaluations"
     
-    def __str__(self):
+    def _str_(self):
         return f"Évaluation #{self.id} - {self.note_chauffeur}/5"
 
 # --------- HistoriquePosition ---------
@@ -190,7 +190,7 @@ class HistoriquePosition(models.Model):
         verbose_name_plural = "Historiques de position"
         ordering = ['-date_position']
     
-    def __str__(self):
+    def _str_(self):
         return f"Position {self.chauffeur} - {self.date_position}"
 
 # --------- Tarif ---------
@@ -205,5 +205,5 @@ class Tarif(models.Model):
         verbose_name = "Tarif"
         verbose_name_plural = "Tarifs"
     
-    def __str__(self):
+    def _str_(self):
         return f"Tarif {self.type_vehicule} - {self.prix_par_km} GNF/km"
